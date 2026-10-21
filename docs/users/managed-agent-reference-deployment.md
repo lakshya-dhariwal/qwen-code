@@ -41,7 +41,7 @@ QWEN_HOSTED_HARNESS_CAPABILITY_DIGEST="$QWEN_MANAGED_AGENT_CAPABILITY_DIGEST" \
 qwen serve --profile hosted-harness --port 4170 --hostname 127.0.0.1 --no-web
 ```
 
-Keep the Harness on loopback. Record the port it reports; `--port` may advance when the requested port is already occupied.
+Keep the Harness on loopback. The Hosted Harness profile does not move to another port: when `--port` is in use, the Harness fails to start, naming the port.
 
 ## Start the Java control plane
 
@@ -85,7 +85,7 @@ This base configuration supports text-only Hosted Sessions. Keep the listener on
 bin/qwen-managed-agent-bootstrap
 ```
 
-The token and digest are written only to `harness.env`: `server.env` names that file through `QWEN_MANAGED_AGENT_HARNESS_CREDENTIALS_FILE`, and the control plane reads both values from it. It refuses to start when the file is set together with `QWEN_MANAGED_AGENT_HARNESS_TOKEN` or `QWEN_MANAGED_AGENT_CAPABILITY_DIGEST`, so a rotation changes one file. The generated `harness.env` and `server.env` are shell-sourceable and also valid systemd `EnvironmentFile`s. Pass `--directory /etc/qwen-managed-agent` for the systemd layout, fill in `SPRING_DATASOURCE_PASSWORD`, and adjust ownership to the service account.
+The token and digest, and the Broker URL and token for the tool path, are written only to `harness.env`: `server.env` names that file through `QWEN_MANAGED_AGENT_HARNESS_CREDENTIALS_FILE`, and the control plane reads them from it. It refuses to start when the file is set together with `QWEN_MANAGED_AGENT_HARNESS_TOKEN` or `QWEN_MANAGED_AGENT_CAPABILITY_DIGEST`, so a rotation changes one file. The generated `harness.env` and `server.env` are shell-sourceable and also valid systemd `EnvironmentFile`s. Pass `--directory /etc/qwen-managed-agent` for the systemd layout, fill in `SPRING_DATASOURCE_PASSWORD`, and adjust ownership to the service account.
 
 ## Preflight check
 
@@ -115,6 +115,8 @@ export QWEN_MANAGED_AGENT_NODE_EXECUTABLE='/usr/bin/node'
 export QWEN_MANAGED_AGENT_RUNTIME_WORKER_ENTRY='/opt/qwen-code/dist/cli.js'
 export QWEN_MANAGED_AGENT_RUNTIME_VERIFIED_WORKSPACE_RECOVERY_ENABLED='true'
 ```
+
+Give the Hosted Harness the same Broker through its environment, not its command line: set `QWEN_HOSTED_HARNESS_BROKER_URL='http://127.0.0.1:4182'` and `QWEN_HOSTED_HARNESS_BROKER_TOKEN` to the token above before starting it. The Harness removes the token from every agent process it starts. With the bootstrap's files, `harness.env` already holds both, and the control plane takes its Broker token from that file, so `server.env` sets no `QWEN_MANAGED_AGENT_RUNTIME_BROKER_TOKEN`; setting both copies refuses startup.
 
 Before admitting file, Shell, or child Git work, complete the native storage registration and mount-identity verification described under “Verified physical Workspace recovery” in `docs/server-reference.md`. An unregistered or ambiguous mount must remain unavailable. Public Shell and v2 capability advertisement stay disabled until their separate qualification completes.
 

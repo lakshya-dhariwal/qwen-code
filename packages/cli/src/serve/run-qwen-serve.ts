@@ -32,7 +32,11 @@ import {
   validateHostedHarnessProfile,
   HOSTED_CSI_SESSION_STORE_URL_ENV,
 } from './hosted-harness-profile.js';
-import { HOSTED_HARNESS_CAPABILITY_DIGEST_ENV } from './hosted-harness-contract.js';
+import {
+  HOSTED_HARNESS_BROKER_URL_ENV,
+  HOSTED_HARNESS_CAPABILITY_DIGEST_ENV,
+} from './hosted-harness-contract.js';
+import { HOSTED_HARNESS_BROKER_TOKEN_ENV } from '@qwen-code/acp-bridge/spawnChannel';
 import { isWithinRoot } from '../config/path-comparison.js';
 import { readSshWorkspace } from './ssh-workspace-store.js';
 import {
@@ -3459,6 +3463,18 @@ async function runQwenServeImpl(
     (optsIn.profile === 'hosted-harness'
       ? process.env[HOSTED_HARNESS_CAPABILITY_DIGEST_ENV]
       : undefined);
+  // The environment keeps the Broker token off the command line, where
+  // every local user can read it.
+  const managedRuntimeBrokerUrl =
+    optsIn.managedRuntimeBrokerUrl ??
+    (optsIn.profile === 'hosted-harness'
+      ? process.env[HOSTED_HARNESS_BROKER_URL_ENV]
+      : undefined);
+  const managedRuntimeBrokerToken =
+    optsIn.managedRuntimeBrokerToken ??
+    (optsIn.profile === 'hosted-harness'
+      ? process.env[HOSTED_HARNESS_BROKER_TOKEN_ENV]
+      : undefined);
   const hostedCsiSessionStoreUrl =
     optsIn.hostedCsiSessionStoreUrl ??
     process.env[HOSTED_CSI_SESSION_STORE_URL_ENV];
@@ -3469,6 +3485,8 @@ async function runQwenServeImpl(
       optsIn.profile === 'hosted-harness' ? true : optsIn.requireAuth,
     hostedHarnessCapabilityDigest,
     hostedCsiSessionStoreUrl,
+    managedRuntimeBrokerUrl,
+    managedRuntimeBrokerToken,
   });
   const baseEnv: NodeJS.ProcessEnv = { ...process.env };
   const launchMemoryProjectScopeValue =
@@ -3606,6 +3624,8 @@ async function runQwenServeImpl(
     token,
     hostedHarnessCapabilityDigest,
     hostedCsiSessionStoreUrl,
+    managedRuntimeBrokerUrl,
+    managedRuntimeBrokerToken,
     promptDeadlineMs,
     writerIdleTimeoutMs,
     workspace: rawWorkspace,
@@ -11283,7 +11303,13 @@ async function runQwenServeImpl(
       const handleError = (err: NodeJS.ErrnoException): void => {
         server.removeListener('listening', handleListening);
         const nextPort = attemptPort + 1;
-        if (
+        // The control plane names the Hosted Harness by its exact port, so a
+        // moved Harness would start while no Session could reach it.
+        if (err.code === 'EADDRINUSE' && opts.profile === 'hosted-harness') {
+          writeStderrLine(
+            `qwen serve: port ${attemptPort} is in use; --profile hosted-harness does not move to another port`,
+          );
+        } else if (
           err.code === 'EADDRINUSE' &&
           opts.port !== 0 &&
           nextPort <= 65535 &&

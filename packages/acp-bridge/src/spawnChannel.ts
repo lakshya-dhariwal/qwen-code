@@ -743,6 +743,10 @@ export const defaultSpawnChannelFactory: ChannelFactory =
  * loopback Guard provider. The ACP child reaches the daemon over its private
  * channel and never needs this token.
  *
+ * `QWEN_HOSTED_HARNESS_BROKER_TOKEN`: the Hosted Harness's Runtime Broker
+ * credential. Only the daemon calls the Broker; a prompt-injected agent
+ * holding it could drive Runtime executions directly.
+ *
  * **WARNING**: this denylist is correct *only because the agent
  * already has unrestricted shell-tool access* — anything in the env
  * is reachable via `~/.bashrc`/`~/.aws/credentials`/etc. anyway.
@@ -755,10 +759,14 @@ export const defaultSpawnChannelFactory: ChannelFactory =
  *
  * Defined at module scope so the Set is allocated once at load.
  */
+export const HOSTED_HARNESS_BROKER_TOKEN_ENV =
+  'QWEN_HOSTED_HARNESS_BROKER_TOKEN';
+
 const SCRUBBED_CHILD_ENV_KEYS: ReadonlySet<string> = new Set([
   'QWEN_SERVER_TOKEN',
   'QWEN_CODE_SIMPLE',
   EXTERNAL_TOOL_GUARD_TOKEN_ENV,
+  HOSTED_HARNESS_BROKER_TOKEN_ENV,
 ]);
 
 /**

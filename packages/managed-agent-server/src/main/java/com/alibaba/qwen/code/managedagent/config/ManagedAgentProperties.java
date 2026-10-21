@@ -37,7 +37,7 @@ public class ManagedAgentProperties implements EnvironmentAware {
             ManagedAgentProperties.class);
 
     private static final Set<String> HARNESS_CREDENTIAL_KEYS =
-            Set.of("QWEN_SERVER_TOKEN", "QWEN_HOSTED_HARNESS_CAPABILITY_DIGEST");
+            Set.of("QWEN_SERVER_TOKEN", "QWEN_HOSTED_HARNESS_CAPABILITY_DIGEST", "QWEN_HOSTED_HARNESS_BROKER_TOKEN");
     // `-` stays last, where it is literal inside the character class.
     private static final String CREDENTIAL_PUNCTUATION = "._:/+=-";
     private static final Pattern PLAIN_CREDENTIAL =
@@ -196,8 +196,18 @@ public class ManagedAgentProperties implements EnvironmentAware {
         Map<String, String> values = readHarnessEnvironmentFile(file);
         String token = credential(values, "QWEN_SERVER_TOKEN", file);
         String digest = credential(values, "QWEN_HOSTED_HARNESS_CAPABILITY_DIGEST", file);
+        // Optional: a text-only deployment has no Broker to share a token with.
+        String brokerToken = values.get("QWEN_HOSTED_HARNESS_BROKER_TOKEN");
+        boolean sharesBrokerToken = StringUtils.isNotBlank(brokerToken);
+        if (sharesBrokerToken && StringUtils.isNotBlank(runtimeBroker.getToken())) {
+            throw new IllegalStateException("Configure the Runtime Broker token either in"
+                    + " harness.credentials-file or directly, not both");
+        }
         harness.setToken(token);
         harness.setCapabilityDigest(digest);
+        if (sharesBrokerToken) {
+            runtimeBroker.setToken(brokerToken);
+        }
         harnessCredentialsApplied = true;
     }
 

@@ -6602,6 +6602,82 @@ describe('runQwenServe deployment profiles', () => {
     }
   });
 
+  describe('Hosted Harness Broker environment', () => {
+    const hostedOptions = {
+      port: 0,
+      hostname: '127.0.0.1',
+      mode: 'http-bridge' as const,
+      profile: 'hosted-harness' as const,
+      token: 'hosted-secret',
+      serveWebShell: false,
+      hostedHarnessCapabilityDigest: `sha256:${'a'.repeat(64)}`,
+    };
+
+    async function servedOptions(
+      options: Partial<Parameters<typeof runQwenServe>[0]>,
+    ) {
+      const originalCreateServeApp = serverModule.createServeApp;
+      const createApp = vi
+        .spyOn(serverModule, 'createServeApp')
+        .mockImplementation((...args) => originalCreateServeApp(...args));
+      let handle: RunHandle | undefined;
+      try {
+        handle = await runQwenServe(
+          { workspace: isolatedTestRuntimeDir, ...hostedOptions, ...options },
+          {
+            bridge: makeRuntimeBridge(),
+            daemonLogBaseDir: path.join(isolatedTestRuntimeDir, 'debug'),
+          },
+        );
+        return createApp.mock.calls[0]?.[0];
+      } finally {
+        await handle?.close();
+        createApp.mockRestore();
+      }
+    }
+
+    afterEach(() => {
+      vi.unstubAllEnvs();
+    });
+
+    it('reads the Broker URL and token from the environment', async () => {
+      vi.stubEnv('QWEN_HOSTED_HARNESS_BROKER_URL', 'http://127.0.0.1:4182');
+      vi.stubEnv('QWEN_HOSTED_HARNESS_BROKER_TOKEN', 'broker-from-env');
+      const served = await servedOptions({});
+      expect(served?.managedRuntimeBrokerUrl).toBe('http://127.0.0.1:4182');
+      expect(served?.managedRuntimeBrokerToken).toBe('broker-from-env');
+    });
+
+    it('prefers the command-line options over the environment', async () => {
+      vi.stubEnv('QWEN_HOSTED_HARNESS_BROKER_URL', 'http://127.0.0.1:4182');
+      vi.stubEnv('QWEN_HOSTED_HARNESS_BROKER_TOKEN', 'broker-from-env');
+      const served = await servedOptions({
+        managedRuntimeBrokerUrl: 'http://127.0.0.1:4183',
+        managedRuntimeBrokerToken: 'broker-from-flag',
+      });
+      expect(served?.managedRuntimeBrokerUrl).toBe('http://127.0.0.1:4183');
+      expect(served?.managedRuntimeBrokerToken).toBe('broker-from-flag');
+    });
+
+    it('still requires both Broker values when one comes from the environment', async () => {
+      vi.stubEnv('QWEN_HOSTED_HARNESS_BROKER_TOKEN', 'broker-from-env');
+      await expect(
+        runQwenServe({ workspace: isolatedTestRuntimeDir, ...hostedOptions }),
+      ).rejects.toThrow('Hosted Runtime Broker requires both URL and token.');
+    });
+
+    it('ignores the Broker environment outside the Hosted Harness profile', async () => {
+      vi.stubEnv('QWEN_HOSTED_HARNESS_BROKER_URL', 'http://127.0.0.1:4182');
+      vi.stubEnv('QWEN_HOSTED_HARNESS_BROKER_TOKEN', 'broker-from-env');
+      const { handle } = await startDeferredDaemon(isolatedTestRuntimeDir);
+      try {
+        expect(handle.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+      } finally {
+        await handle.close();
+      }
+    });
+  });
+
   it.each([
     { experimentalManagedAgents: true },
     { experimentalManagedRuntimeWorker: true },
@@ -21703,6 +21779,63 @@ describe('runQwenServe channel worker supervisor', () => {
     } finally {
       await handle.close();
     }
+  });
+
+  it('keeps the Hosted Harness on its requested port', async () => {
+    tmpDir = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'qws-hosted-port-')),
+    );
+    const portsAttempted: number[] = [];
+    const stderrWrites: string[] = [];
+    const stderrSpy = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation((chunk) => {
+        stderrWrites.push(String(chunk));
+        return true;
+      });
+    vi.spyOn(serverModule, 'createServeApp').mockReturnValue({
+      locals: {},
+    } as unknown as express.Application);
+    const testServer = createServer();
+    testServer.listen = vi.fn((port: number) => {
+      portsAttempted.push(port);
+      const err = new Error('address in use') as NodeJS.ErrnoException;
+      err.code = 'EADDRINUSE';
+      setImmediate(() => testServer.emit('error', err));
+      return testServer;
+    }) as unknown as typeof testServer.listen;
+
+    try {
+      await expect(
+        runQwenServe(
+          {
+            port: 4170,
+            hostname: '127.0.0.1',
+            mode: 'http-bridge',
+            workspace: tmpDir,
+            profile: 'hosted-harness',
+            token: 'hosted-secret',
+            serveWebShell: false,
+            hostedHarnessCapabilityDigest: `sha256:${'a'.repeat(64)}`,
+          },
+          {
+            bridge: makeFakeBridge(),
+            httpServerFactory: () => testServer,
+            resolveOnListen: true,
+          },
+        ),
+      ).rejects.toMatchObject({ code: 'EADDRINUSE' });
+    } finally {
+      stderrSpy.mockRestore();
+    }
+    expect(portsAttempted).toEqual([4170]);
+    expect(
+      stderrWrites.some((w) =>
+        w.includes(
+          'port 4170 is in use; --profile hosted-harness does not move to another port',
+        ),
+      ),
+    ).toBe(true);
   });
 
   it('does not retry on non-EADDRINUSE listen errors', async () => {

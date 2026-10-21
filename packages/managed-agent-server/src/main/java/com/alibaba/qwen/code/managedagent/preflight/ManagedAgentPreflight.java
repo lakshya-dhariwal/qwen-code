@@ -580,8 +580,11 @@ public final class ManagedAgentPreflight {
             return checks;
         }
         if (StringUtils.isBlank(broker.getToken())) {
+            String file = properties.getHarness().getCredentialsFile();
             checks.add(new Check("broker", Status.FAIL, "token is empty",
-                    "set QWEN_MANAGED_AGENT_RUNTIME_BROKER_TOKEN"));
+                    "set " + (StringUtils.isBlank(file)
+                            ? "QWEN_MANAGED_AGENT_RUNTIME_BROKER_TOKEN"
+                            : "QWEN_HOSTED_HARNESS_BROKER_TOKEN in " + file)));
         }
         if (StringUtils.isBlank(broker.getCredentialKeyId())
                 || StringUtils.isBlank(broker.getCredentialKey())) {

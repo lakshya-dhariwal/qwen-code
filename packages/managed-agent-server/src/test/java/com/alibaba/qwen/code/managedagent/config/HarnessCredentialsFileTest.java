@@ -166,6 +166,45 @@ class HarnessCredentialsFileTest {
     }
 
     @Test
+    void sharesTheBrokerTokenWhenTheFileCarriesIt(@TempDir Path directory) throws IOException {
+        String credentials = "QWEN_SERVER_TOKEN=" + TOKEN + "\nQWEN_HOSTED_HARNESS_CAPABILITY_DIGEST=" + DIGEST + "\n";
+        Path shared = Files.writeString(directory.resolve("shared.env"),
+                credentials + "QWEN_HOSTED_HARNESS_BROKER_TOKEN=broker-token\n");
+        ManagedAgentProperties fromFile = withFile(shared);
+        fromFile.validateWorkspaceFiles();
+        assertThat(fromFile.getRuntimeBroker().getToken()).isEqualTo("broker-token");
+
+        ManagedAgentProperties twice = withFile(shared);
+        twice.getRuntimeBroker().setToken("direct-token");
+        assertThatThrownBy(twice::validateWorkspaceFiles)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Configure the Runtime Broker token either in"
+                        + " harness.credentials-file or directly, not both");
+        assertThat(twice.getHarness().getToken()).isEmpty();
+        assertThat(twice.harnessCredentialsApplied()).isFalse();
+
+        // Without the key, for example on a text-only deployment, the direct value stays in charge.
+        Path textOnly = Files.writeString(directory.resolve("text-only.env"), credentials);
+        ManagedAgentProperties direct = withFile(textOnly);
+        direct.getRuntimeBroker().setToken("direct-token");
+        direct.validateWorkspaceFiles();
+        assertThat(direct.getRuntimeBroker().getToken()).isEqualTo("direct-token");
+
+        // The Harness reads this line too, so it is held to the same rules as the other two.
+        for (String[] refused : new String[][] {
+            {"QWEN_HOSTED_HARNESS_BROKER_TOKEN =broker-token",
+                "whitespace around `=` in QWEN_HOSTED_HARNESS_BROKER_TOKEN"},
+            {"QWEN_HOSTED_HARNESS_BROKER_TOKEN=broker&token",
+                "a character other than letters, digits and `._:/+=-` in QWEN_HOSTED_HARNESS_BROKER_TOKEN"},
+        }) {
+            Path file = Files.writeString(directory.resolve("refused.env"), credentials + refused[0] + "\n");
+            assertThatThrownBy(withFile(file)::validateWorkspaceFiles).as(refused[0])
+                    .hasMessageStartingWith(
+                            "Hosted Harness credentials file " + file + " line 3 uses " + refused[1] + ";");
+        }
+    }
+
+    @Test
     void leavesDirectCredentialsAloneWithoutAFile() {
         ManagedAgentProperties properties = new ManagedAgentProperties();
         properties.getHarness().setToken(TOKEN);

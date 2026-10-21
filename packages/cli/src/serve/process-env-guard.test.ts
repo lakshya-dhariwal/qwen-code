@@ -358,9 +358,13 @@ const allowedProcessEnvAccesses = normalizeAllowances([
         'daemon environment into the TLS trust probe child. NODE_TLS_REJECT_UNAUTHORIZED is read to skip the ' +
         'worker TLS trust check when it disables verification: workers inherit the variable unscrubbed and dial ' +
         'via fetch, which honors it, so the strict probe would flag an outage that never happens. ' +
-        'The Hosted Harness capability digest and private CSI Session Store URL are process-scoped contracts fixed at daemon bootstrap.',
+        'The Hosted Harness capability digest and private CSI Session Store URL are process-scoped contracts fixed at daemon bootstrap. ' +
+        'The Hosted Harness Broker URL and token fall back to the environment at the same point, so the token stays off the command line; ' +
+        'the ACP bridge scrubs the token from every child.',
       accesses: {
         'computed:EXTERNAL_TOOL_GUARD_TOKEN_ENV': 1,
+        'computed:HOSTED_HARNESS_BROKER_TOKEN_ENV': 1,
+        'computed:HOSTED_HARNESS_BROKER_URL_ENV': 1,
         'computed:HOSTED_HARNESS_CAPABILITY_DIGEST_ENV': 1,
         'computed:HOSTED_CSI_SESSION_STORE_URL_ENV': 1,
         'computed:QWEN_SERVE_CDP_TUNNEL_OVER_WS_ENV': 1,

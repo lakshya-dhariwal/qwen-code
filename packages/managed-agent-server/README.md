@@ -639,10 +639,11 @@ It is read once at JVM startup, so if `mvn spring-boot:run` is already up
 on the 4170 value exported in Prerequisites, restart it with the override in
 place.
 
-`--port` is a request, not a guarantee: `qwen serve` moves to the next free
+The ordinary daemon treats `--port` as a request and moves to the next free
 port on a collision, and 4171 is exactly where a daemon displaced from 4170
-lands. Confirm each server's bound port in its startup line before exporting
-the base URL above.
+lands. The Hosted Harness profile never moves: it fails to start when its
+port is taken, naming the port. Start the Harness first, or confirm the
+daemon's bound port in its startup line.
 
 With both up, run from the repository root:
 
@@ -808,7 +809,13 @@ Session Store uses the persisted Workspace ID; public callers cannot choose the
 profile. W1c offline migration remains files/1-only and refuses persisted Shell
 definitions with `migration_profile_unsupported`. Configure the
 Harness's deployment-owned `--managed-runtime-broker-url` and
-`--managed-runtime-broker-token` options to reach this Broker. A repeated creation key returns
+`--managed-runtime-broker-token` options, or the `QWEN_HOSTED_HARNESS_BROKER_URL`
+and `QWEN_HOSTED_HARNESS_BROKER_TOKEN` variables they fall back to, to reach
+this Broker. The variables keep the token off the command line, and the
+Harness removes the token from every agent process it starts. When
+`QWEN_MANAGED_AGENT_HARNESS_CREDENTIALS_FILE` names that environment file
+and it sets the token, the control plane takes its Broker token from it and
+refuses a second, direct `QWEN_MANAGED_AGENT_RUNTIME_BROKER_TOKEN`. A repeated creation key returns
 the original Session/Turn; changed input conflicts. Disabling the Workspace files
 opt-in refuses creation with input, including replays, while empty bound creation
 remains available. The Shell opt-in selects the persisted profile; it does not

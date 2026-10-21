@@ -49,9 +49,12 @@ endings, no whitespace around the `=`, and only letters, digits and `._:/+=-`
 in the value. The control plane refuses anything else, such as a continuation
 or text after a closing quote, since systemd or a shell would read it
 differently.
-If the Harness reports a port other than 4170 because the
-requested one was in use, update `QWEN_MANAGED_AGENT_HARNESS_BASE_URL` in
-`server.env` before starting the control plane.
+For the tool path, uncomment `QWEN_HOSTED_HARNESS_BROKER_URL` and
+`QWEN_HOSTED_HARNESS_BROKER_TOKEN` in `harness.env`. The control plane reads
+the same token from it, so `server.env` carries no Broker token. The Harness
+never moves off port 4170: if the port is in use, the unit fails to start
+instead of running where `QWEN_MANAGED_AGENT_HARNESS_BASE_URL` cannot reach
+it.
 The Session Store needs no setting of its own: the control plane derives its
 URL from its own listener, which does not follow the Harness port, and its
 workspace ID from `QWEN_MANAGED_AGENT_WORKSPACE_CWD`, the directory created

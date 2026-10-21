@@ -530,6 +530,12 @@ class ManagedAgentPreflightTest {
                 + placeholderDigest,
                 ManagedAgentPreflight.harnessCheck(
                         fromFile(placeholderDigest, "http://127.0.0.1:1")).fix());
+        properties.getRuntimeBroker().setEnabled(true);
+        assertEquals("set QWEN_MANAGED_AGENT_RUNTIME_BROKER_TOKEN",
+                ManagedAgentPreflight.brokerChecks(properties).get(0).fix());
+        properties.getHarness().setCredentialsFile("/etc/harness.env");
+        assertEquals("set QWEN_HOSTED_HARNESS_BROKER_TOKEN in /etc/harness.env",
+                ManagedAgentPreflight.brokerChecks(properties).get(0).fix());
     }
 
     @Test

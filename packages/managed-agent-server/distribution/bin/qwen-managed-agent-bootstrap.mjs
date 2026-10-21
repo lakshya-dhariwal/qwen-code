@@ -46,6 +46,9 @@ export function renderHarnessEnv(secrets) {
     '# server.env points QWEN_MANAGED_AGENT_HARNESS_CREDENTIALS_FILE here.',
     `QWEN_SERVER_TOKEN=${secrets.token}`,
     `QWEN_HOSTED_HARNESS_CAPABILITY_DIGEST=${secrets.digest}`,
+    '# Used only once the Runtime Broker is enabled for the tool path.',
+    'QWEN_HOSTED_HARNESS_BROKER_URL=http://127.0.0.1:4182',
+    `QWEN_HOSTED_HARNESS_BROKER_TOKEN=${secrets.brokerToken}`,
     '',
   ].join('\n');
 }
@@ -67,7 +70,6 @@ export function renderServerEnv(
     `QWEN_MANAGED_AGENT_HARNESS_CREDENTIALS_FILE='${harnessEnvPath}'`,
     '# The Session Store workspace ID derives from this existing directory.',
     'QWEN_MANAGED_AGENT_WORKSPACE_CWD=/srv/qwen-workspace',
-    `QWEN_MANAGED_AGENT_RUNTIME_BROKER_TOKEN=${secrets.brokerToken}`,
     `SPRING_CONFIG_ADDITIONAL_LOCATION='file:${applicationConfigPath}'`,
     '',
   ].join('\n');
